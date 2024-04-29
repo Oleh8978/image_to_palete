@@ -3,77 +3,270 @@
 
 <head>
     <title>Color Extraction</title>
+    <style>
+        table {
+            border-collapse: collapse;
+        }
+
+        table,
+        th,
+        td {
+            border: 1px solid black;
+            padding: 8px;
+        }
+
+        .colorPreview {
+            width: 50px;
+            height: 50px;
+            display: inline-block;
+            margin-right: 10px;
+        }
+
+        .loader {
+            border: 16px solid #f3f3f3;
+            border-top: 16px solid #3498db;
+            border-radius: 50%;
+            width: 120px;
+            height: 120px;
+            animation: spin 2s linear infinite;
+            margin: 20px auto;
+        }
+
+        @keyframes spin {
+            0% {
+                transform: rotate(0deg);
+            }
+
+            100% {
+                transform: rotate(360deg);
+            }
+        }
+
+        .hidden {
+            display: none;
+        }
+    </style>
     <script>
-        function extractColors() {
-            // Get the selected image file
+        function resizeImage(image, maxWidth, maxHeight) {
+            var canvas = document.createElement('canvas');
+            var ctx = canvas.getContext('2d');
+
+            // Calculate new dimensions
+            var width = image.width;
+            var height = image.height;
+            if (width > maxWidth) {
+                height *= maxWidth / width;
+                width = maxWidth;
+            }
+            if (height > maxHeight) {
+                width *= maxHeight / height;
+                height = maxHeight;
+            }
+
+            // Resize image
+            canvas.width = width;
+            canvas.height = height;
+            ctx.drawImage(image, 0, 0, width, height);
+            return canvas;
+        }
+
+        function extractColors(imageData) {
+            return new Promise(function (resolve, reject) {
+                try {
+                    // Extract colors
+                    var colors = {};
+
+                    for (var i = 0; i < imageData.data.length; i += 4) {
+                        // Get RGBA values
+                        var r = imageData.data[i];
+                        var g = imageData.data[i + 1];
+                        var b = imageData.data[i + 2];
+                        var a = imageData.data[i + 3];
+
+                        // Exclude transparent pixels
+                        if (a !== 0) {
+                            var rgba = 'rgba(' + r + ',' + g + ',' + b + ',' + a + ')';
+                            var rgb = 'rgb(' + r + ',' + g + ',' + b + ')';
+                            var hex = '#' + ((1 << 24) + (r << 16) + (g << 8) + b).toString(16).slice(1);
+                            var hsl = 'hsl(' + rgbToHsl(r, g, b).join(',') + ')';
+                            var hwb = 'hwb(' + rgbToHwb(r, g, b).join(',') + ')';
+
+                            colors[rgba] = { rgba: rgba, rgb: rgb, hex: hex, hsl: hsl, hwb: hwb };
+                        }
+                    }
+
+                    resolve(colors);
+                } catch (error) {
+                    reject(error);
+                }
+            });
+        }
+
+        function rgbToHsl(r, g, b) {
+            r /= 255, g /= 255, b /= 255;
+
+            var max = Math.max(r, g, b), min = Math.min(r, g, b);
+            var h, s, l = (max + min) / 2;
+
+            if (max == min) {
+                h = s = 0; // achromatic
+            } else {
+                var d = max - min;
+                s = l > 0.5 ? d / (2 - max - min) : d / (max + min);
+                switch (max) {
+                    case r: h = (g - b) / d + (g < b ? 6 : 0); break;
+                    case g: h = (b - r) / d + 2; break;
+                    case b: h = (r - g) / d + 4; break;
+                }
+                h /= 6;
+            }
+
+            return [Math.round(h * 360), Math.round(s * 100), Math.round(l * 100)];
+        }
+
+        function rgbToHwb(r, g, b) {
+            r /= 255, g /= 255, b /= 255;
+
+            var max = Math.max(r, g, b), min = Math.min(r, g, b);
+            var h, w = 1 - max, b = 1 - min;
+
+            if (max == min) {
+                h = 0; // achromatic
+            } else {
+                var d = max - min;
+                h = (max == r) ? (g - b) / d + (g < b ? 6 : 0) :
+                    (max == g) ? (b - r) / d + 2 :
+                        (r - g) / d + 4;
+                h /= 6;
+            }
+
+            return [Math.round(h * 360), Math.round(w * 100), Math.round(b * 100)];
+        }
+
+        function loadAndExtractColors(file) {
+            // Show loader
+            var loader = document.getElementById('loader');
+            loader.classList.remove('hidden');
+
+            return new Promise(function (resolve, reject) {
+                try {
+                    // Create an image element
+                    var img = new Image();
+
+                    // When the image is loaded
+                    img.onload = function () {
+                        // Hide loader
+                        loader.classList.add('hidden');
+
+                        // Resize image
+                        var resizedCanvas = resizeImage(img, 400, 400);
+
+                        // Get the image data
+                        var ctx = resizedCanvas.getContext('2d');
+                        var imageData = ctx.getImageData(0, 0, resizedCanvas.width, resizedCanvas.height);
+
+                        // Extract colors asynchronously
+                        extractColors(imageData)
+                            .then(function (colors) {
+                                resolve(colors);
+                            })
+                            .catch(function (error) {
+                                reject(error);
+                            });
+                    };
+
+                    // Set the source of the image to the selected file
+                    img.src = URL.createObjectURL(file);
+                } catch (error) {
+                    reject(error);
+                }
+            });
+        }
+
+        function displayColorTable(colors) {
+            // Display color table
+            var colorTable = document.getElementById('colorTable');
+            colorTable.innerHTML = '';
+
+            // Create table headers
+            var headerRow = colorTable.insertRow();
+            var headerCell1 = headerRow.insertCell(0);
+            var headerCell2 = headerRow.insertCell(1);
+            var headerCell3 = headerRow.insertCell(2);
+            var headerCell4 = headerRow.insertCell(3);
+            var headerCell5 = headerRow.insertCell(4);
+            headerCell1.textContent = 'Color';
+            headerCell2.textContent = 'RGBA';
+            headerCell3.textContent = 'RGB';
+            headerCell4.textContent = 'Hex';
+            headerCell5.textContent = 'HSL';
+
+            // Populate table with color data
+            Object.keys(colors).forEach(function (color) {
+                var row = colorTable.insertRow();
+                var cell1 = row.insertCell(0);
+                var cell2 = row.insertCell(1);
+                var cell3 = row.insertCell(2);
+                var cell4 = row.insertCell(3);
+                var cell5 = row.insertCell(4);
+                cell1.style.backgroundColor = color;
+                cell1.textContent = color;
+                cell2.textContent = colors[color].rgba;
+                cell3.textContent = colors[color].rgb;
+                cell4.textContent = colors[color].hex;
+                cell5.textContent = colors[color].hsl;
+            });
+        }
+
+        function displayColorSchemePreview(colors) {
+            // Display color scheme preview
+            var colorSchemePreview = document.getElementById('colorSchemePreview');
+            colorSchemePreview.innerHTML = '';
+
+            Object.keys(colors).forEach(function (color) {
+                var colorPreview = document.createElement('div');
+                colorPreview.className = 'colorPreview';
+                colorPreview.style.backgroundColor = color;
+                colorSchemePreview.appendChild(colorPreview);
+            });
+        }
+
+        function handleFileChange() {
             var fileInput = document.getElementById('imageInput');
             var file = fileInput.files[0];
 
-            // Create an image element
-            var img = new Image();
-
-            // When the image is loaded
-            img.onload = function () {
-                // Create a canvas element
-                var canvas = document.createElement('canvas');
-                canvas.width = img.width;
-                canvas.height = img.height;
-
-                // Get the 2D context of the canvas
-                var ctx = canvas.getContext('2d');
-
-                // Draw the image onto the canvas
-                ctx.drawImage(img, 0, 0);
-
-                // Get the image data
-                var imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
-
-                // Extract colors
-                var colors = {};
-
-                for (var i = 0; i < imageData.data.length; i += 4) {
-                    // Get RGBA values
-                    var r = imageData.data[i];
-                    var g = imageData.data[i + 1];
-                    var b = imageData.data[i + 2];
-                    var a = imageData.data[i + 3];
-
-                    // Exclude transparent pixels
-                    if (a !== 0) {
-                        var color = 'rgba(' + r + ',' + g + ',' + b + ',' + a + ')';
-                        colors[color] = (colors[color] || 0) + 1;
-                    }
-                }
-
-                // Convert colors object to JSON string
-                var jsonString = JSON.stringify(colors);
-
-                // Save JSON string as a file
-                var blob = new Blob([jsonString], { type: 'application/json' });
-                var url = URL.createObjectURL(blob);
-
-                // Create a link to download the JSON file
-                var a = document.createElement('a');
-                a.href = url;
-                a.download = 'colors.json';
-                document.body.appendChild(a);
-                a.click();
-
-                // Clean up
-                document.body.removeChild(a);
-                URL.revokeObjectURL(url);
-            };
-
-            // Set the source of the image to the selected file
-            img.src = URL.createObjectURL(file);
+            if (file) {
+                // Lazy load image
+                loadAndExtractColors(file)
+                    .then(function (colors) {
+                        // Display color table and scheme preview
+                        displayColorTable(colors);
+                        displayColorSchemePreview(colors);
+                    })
+                    .catch(function (error) {
+                        console.error('Error:', error);
+                    });
+            } else {
+                alert("Please select an image file.");
+            }
         }
     </script>
 </head>
 
 <body>
     <h1>Color Extraction</h1>
-    <input type="file" id="imageInput" accept="image/*">
-    <button onclick="extractColors()">Extract Colors</button>
+    <input type="file" id="imageInput" accept="image/*" onchange="handleFileChange()">
+    <div id="loader" class="loader hidden"></div>
+
+    <h2>Color Table</h2>
+    <table id="colorTable">
+        <!-- Color data will be inserted here dynamically -->
+    </table>
+
+    <h2>Color Scheme Preview</h2>
+    <div id="colorSchemePreview">
+        <!-- Color previews will be inserted here dynamically -->
+    </div>
 </body>
 
 </html>
