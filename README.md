@@ -1,1 +1,1 @@
-# image_to_palete
+# Image to color extractor 
