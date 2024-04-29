@@ -1,12 +1,79 @@
 <!DOCTYPE html>
 <html>
 
+<head>
+    <title>Color Extraction</title>
+    <script>
+        function extractColors() {
+            // Get the selected image file
+            var fileInput = document.getElementById('imageInput');
+            var file = fileInput.files[0];
+
+            // Create an image element
+            var img = new Image();
+
+            // When the image is loaded
+            img.onload = function () {
+                // Create a canvas element
+                var canvas = document.createElement('canvas');
+                canvas.width = img.width;
+                canvas.height = img.height;
+
+                // Get the 2D context of the canvas
+                var ctx = canvas.getContext('2d');
+
+                // Draw the image onto the canvas
+                ctx.drawImage(img, 0, 0);
+
+                // Get the image data
+                var imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+
+                // Extract colors
+                var colors = {};
+
+                for (var i = 0; i < imageData.data.length; i += 4) {
+                    // Get RGBA values
+                    var r = imageData.data[i];
+                    var g = imageData.data[i + 1];
+                    var b = imageData.data[i + 2];
+                    var a = imageData.data[i + 3];
+
+                    // Exclude transparent pixels
+                    if (a !== 0) {
+                        var color = 'rgba(' + r + ',' + g + ',' + b + ',' + a + ')';
+                        colors[color] = (colors[color] || 0) + 1;
+                    }
+                }
+
+                // Convert colors object to JSON string
+                var jsonString = JSON.stringify(colors);
+
+                // Save JSON string as a file
+                var blob = new Blob([jsonString], { type: 'application/json' });
+                var url = URL.createObjectURL(blob);
+
+                // Create a link to download the JSON file
+                var a = document.createElement('a');
+                a.href = url;
+                a.download = 'colors.json';
+                document.body.appendChild(a);
+                a.click();
+
+                // Clean up
+                document.body.removeChild(a);
+                URL.revokeObjectURL(url);
+            };
+
+            // Set the source of the image to the selected file
+            img.src = URL.createObjectURL(file);
+        }
+    </script>
+</head>
+
 <body>
-
-    <h1>My First Heading</h1>
-
-    <p>My first paragraph.</p>
-
+    <h1>Color Extraction</h1>
+    <input type="file" id="imageInput" accept="image/*">
+    <button onclick="extractColors()">Extract Colors</button>
 </body>
 
 </html>
