@@ -168,7 +168,7 @@
                         // Extract colors asynchronously
                         extractColors(imageData)
                             .then(function (colors) {
-                                resolve(colors);
+                                resolve({ colors: colors, canvas: resizedCanvas });
                             })
                             .catch(function (error) {
                                 reject(error);
@@ -231,6 +231,53 @@
             });
         }
 
+        function pickColor(event, colors, canvas) {
+            var x = event.offsetX;
+            var y = event.offsetY;
+
+            // Get the color data of the clicked pixel
+            var ctx = canvas.getContext('2d');
+            var pixelData = ctx.getImageData(x, y, 1, 1).data;
+            var rgba = 'rgba(' + pixelData[0] + ',' + pixelData[1] + ',' + pixelData[2] + ',' + (pixelData[3] / 255) + ')';
+
+            // Find the closest color from the extracted colors
+            var closestColor = Object.keys(colors).reduce(function (prev, curr) {
+                var prevColor = hexToRgb(prev);
+                var currColor = hexToRgb(curr);
+                var prevDistance = getColorDistance(prevColor, pixelData);
+                var currDistance = getColorDistance(currColor, pixelData);
+                return (currDistance < prevDistance) ? curr : prev;
+            });
+
+            var colorInfo = colors[closestColor];
+            console.log('Picked Color:', colorInfo);
+
+            // Update UI to display the picked color
+            var pickedColor = document.getElementById('pickedColor');
+            pickedColor.style.backgroundColor = closestColor;
+            pickedColor.textContent = 'Picked Color: ' + closestColor + ' - ' + colorInfo.hex;
+        }
+
+        function getColorDistance(color1, color2) {
+            var dr = color1[0] - color2[0];
+            var dg = color1[1] - color2[1];
+            var db = color1[2] - color2[2];
+            return Math.sqrt(dr * dr + dg * dg + db * db);
+        }
+
+        function hexToRgb(hex) {
+            // Remove # if present
+            hex = hex.replace(/^#/, '');
+
+            // Convert hex to RGB
+            var bigint = parseInt(hex, 16);
+            var r = (bigint >> 16) & 255;
+            var g = (bigint >> 8) & 255;
+            var b = bigint & 255;
+
+            return [r, g, b];
+        }
+
         function handleFileChange() {
             var fileInput = document.getElementById('imageInput');
             var file = fileInput.files[0];
@@ -238,14 +285,26 @@
             if (file) {
                 // Lazy load image
                 loadAndExtractColors(file)
-                    .then(function (colors) {
+                    .then(function (data) {
                         // Display color table and scheme preview
-                        displayColorTable(colors);
-                        displayColorSchemePreview(colors);
+                        displayColorTable(data.colors);
+                        displayColorSchemePreview(data.colors);
+
+                        // Add click event listener to the image
+                        var canvas = data.canvas;
+                        var imageContainer = document.getElementById('imageContainer');
+                        imageContainer.appendChild(canvas);
+                        canvas.addEventListener('click', function (event) {
+                            pickColor(event, data.colors, canvas);
+                        });
                     })
                     .catch(function (error) {
                         console.error('Error:', error);
                     });
+
+                // Display uploaded image
+                var uploadedImage = document.getElementById('uploadedImage');
+                uploadedImage.src = URL.createObjectURL(file);
             } else {
                 alert("Please select an image file.");
             }
@@ -266,6 +325,12 @@
     <h2>Color Scheme Preview</h2>
     <div id="colorSchemePreview">
         <!-- Color previews will be inserted here dynamically -->
+    </div>
+
+    <h2 id="pickedColor">Picked Color:</h2>
+
+    <div id="imageContainer">
+        <img id="uploadedImage" src="#" alt="Uploaded Image">
     </div>
 </body>
 
